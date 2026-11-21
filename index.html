@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scala 40 – Statistiche</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='3' width='20' height='26' rx='3' fill='%23fff' stroke='%23d03b3b' stroke-width='2'/%3E%3Cpath d='M16 10l5 6-5 6-5-6z' fill='%23d03b3b'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11,11,11,0.10);
+  --accent: #d03b3b;
+  --good: #006300;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --ring: rgba(255,255,255,0.10);
+    --accent: #e66767;
+    --good: #0ca30c;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+h1 { font-size: 28px; margin: 0; letter-spacing: -0.01em; }
+h1 span { color: var(--accent); }
+.sub { color: var(--ink-2); margin: 2px 0 0; }
+h2 { font-size: 18px; margin: 0 0 4px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--ring); border-radius: 8px; padding: 6px 10px;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--ring); border-radius: 14px;
+  padding: 18px; margin-bottom: 16px;
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 > .card { margin-bottom: 0; }
+.grid2 { margin-bottom: 16px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 14px; padding: 14px 16px; }
+.tile .k { color: var(--ink-2); font-size: 13px; }
+.tile .v { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.tile .d { color: var(--muted); font-size: 12px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 600; font-size: 13px; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr:last-child td { border-bottom: 0; }
+.who { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart text.lab { fill: var(--ink-2); font-weight: 600; }
+.chart text.val { fill: var(--ink); }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--ring); border-radius: 10px; padding: 8px 10px; font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14); white-space: nowrap; z-index: 5; display: none;
+}
+.tip b { display: block; margin-bottom: 4px; }
+.tip .row { display: flex; align-items: center; gap: 8px; }
+.tip .row span:last-child { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 10px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+details.game { border: 1px solid var(--ring); border-radius: 12px; margin-bottom: 10px; background: var(--surface); }
+details.game > summary {
+  list-style: none; cursor: pointer; padding: 12px 14px; display: flex; flex-wrap: wrap;
+  align-items: center; gap: 6px 16px;
+}
+details.game > summary::-webkit-details-marker { display: none; }
+details.game > summary::before { content: "▸"; color: var(--muted); }
+details.game[open] > summary::before { content: "▾"; }
+.gdate { font-weight: 650; min-width: 110px; }
+.gscore { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.gscore .w { color: var(--ink); font-weight: 700; }
+.badge { font-size: 12px; font-weight: 600; color: var(--good); }
+.gbody { padding: 0 14px 14px; }
+.gbody .grid2 { margin: 0; }
+td.win { font-weight: 700; }
+td.zero { color: var(--good); font-weight: 600; }
+tr.tot td { border-top: 2px solid var(--axis); font-weight: 700; }
+.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.rec { border: 1px solid var(--ring); border-radius: 12px; padding: 12px 14px; }
+.rec .k { color: var(--ink-2); font-size: 13px; }
+.rec .v { font-size: 22px; font-weight: 650; }
+.rec .d { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); text-align: center; padding: 30px 0; }
+footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Scala 40 <span>♦</span> Statistiche</h1>
+      <p class="sub">Le partite di casa, trascritte dai fogli. Vince chi chiude con meno punti.</p>
+    </div>
+    <label>Periodo&nbsp; <select id="anno"></select></label>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <h2>Classifica</h2>
+    <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti.</p>
+    <div class="scroll"><table id="classifica"></table></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Vittorie</h2>
+      <p class="hint">Partite vinte da ciascun giocatore</p>
+      <div class="chart" id="chVittorie"></div>
+    </section>
+    <section class="card">
+      <h2>Media punti per mano</h2>
+      <p class="hint">Più è bassa, meglio è</p>
+      <div class="chart" id="chMedia"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Vittorie nel tempo</h2>
+    <p class="hint">Vittorie accumulate partita dopo partita</p>
+    <div class="chart" id="chTempo"></div>
+  </section>
+
+  <section class="card">
+    <h2>Record</h2>
+    <div class="records" id="records"></div>
+  </section>
+
+  <section class="card">
+    <h2>Testa a testa</h2>
+    <p class="hint">Quante volte il giocatore della riga ha chiuso la partita davanti a quello della colonna (davanti–dietro)</p>
+    <div class="scroll"><table id="h2h"></table></div>
+  </section>
+
+  <section>
+    <h2 style="margin:24px 0 4px">Partite</h2>
+    <p class="hint">Dalla più recente. Apri una partita per vedere mano per mano.</p>
+    <div id="partite"></div>
+  </section>
+
+  <footer>Dati in <code>partite.js</code></footer>
+</div>
+
+<script src="partite.js"></script>
+<script>
+"use strict";
+const MESI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+const ALL = (window.PARTITE || []).slice()
+  .sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id));
+
+// Il colore segue il giocatore (ordine di prima apparizione), mai la posizione in classifica.
+const PLAYERS = [];
+ALL.forEach(g => g.giocatori.forEach(p => { if (!PLAYERS.includes(p)) PLAYERS.push(p); }));
+const col = p => { const i = PLAYERS.indexOf(p); return i >= 0 && i < 8 ? `var(--s${i + 1})` : "var(--muted)"; };
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDate = d => { const [y, m, g] = d.split("-"); return `${+g} ${MESI[+m - 1]} ${y}`; };
+const shortDate = d => { const [y, m, g] = d.split("-"); return `${+g}/${+m}/${y.slice(2)}`; };
+const totals = g => g.giocatori.map((_, i) => g.mani.reduce((s, m) => s + (Number(m[i]) || 0), 0));
+const winners = g => { const t = totals(g), mn = Math.min(...t); return g.giocatori.filter((_, i) => t[i] === mn); };
+const pct = (a, b) => b ? Math.round(a * 100 / b) + "%" : "–";
+const num = (x, d = 1) => x.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
+const who = p => `<span class="who"><span class="dot" style="background:${col(p)}"></span>${esc(p)}</span>`;
+
+/* ---------------- statistiche ---------------- */
+function stats(games) {
+  const S = {};
+  const get = p => S[p] || (S[p] = { p, partite: 0, vinte: 0, mani: 0, zeri: 0, punti: 0, peggio: 0 });
+  games.forEach(g => {
+    const w = winners(g);
+    g.giocatori.forEach((p, i) => {
+      const s = get(p);
+      s.partite++; if (w.includes(p)) s.vinte++;
+      g.mani.forEach(m => {
+        const v = Number(m[i]) || 0;
+        s.mani++; s.punti += v; if (v === 0) s.zeri++; if (v > s.peggio) s.peggio = v;
+      });
+    });
+  });
+  return Object.values(S).sort((a, b) =>
+    (b.vinte / b.partite) - (a.vinte / a.partite) || b.vinte - a.vinte || (a.punti / a.mani) - (b.punti / b.mani));
+}
+
+/* ---------------- grafici (SVG fatto a mano) ---------------- */
+const NS = "http://www.w3.org/2000/svg";
+function niceScale(max, ticks = 4) {
+  max = Math.max(max, 1);
+  const raw = max / ticks, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * p).find(s => s >= raw);
+  return { step, max: Math.ceil(max / step) * step };
+}
+function tipBox(el) {
+  let t = el.querySelector(".tip");
+  if (!t) { t = document.createElement("div"); t.className = "tip"; el.appendChild(t); }
+  return t;
+}
+function placeTip(el, tip, x, y) {
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight, W = el.clientWidth;
+  let left = x + 14; if (left + w > W) left = x - w - 14; if (left < 0) left = 0;
+  tip.style.left = left + "px"; tip.style.top = Math.max(0, y - h / 2) + "px";
+}
+
+// Barre orizzontali: una per giocatore, estremità arrotondata solo dal lato del dato.
+function barChart(el, rows, { fmt = v => v, tip = r => "" } = {}) {
+  el.innerHTML = "";
+  if (!rows.length) { el.innerHTML = '<p class="empty">Nessun dato</p>'; return; }
+  const W = el.clientWidth || 400, bh = 22, gap = 12, L = 56, R = 44;
+  const H = rows.length * (bh + gap) - gap + 4;
+  const max = Math.max(...rows.map(r => r.v), 0) || 1;
+  const iw = W - L - R;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+  svg.setAttribute("role", "img");
+  let html = `<line x1="${L}" x2="${L}" y1="0" y2="${H}" stroke="var(--axis)"/>`;
+  rows.forEach((r, i) => {
+    const y = i * (bh + gap), w = Math.max(0, r.v / max * iw), x0 = L + 1, x1 = x0 + w, rr = Math.min(4, w);
+    const d = w > 0 ? `M${x0},${y}H${x1 - rr}A${rr},${rr} 0 0 1 ${x1},${y + rr}V${y + bh - rr}A${rr},${rr} 0 0 1 ${x1 - rr},${y + bh}H${x0}Z` : "";
+    html += `<text class="lab" x="${L - 10}" y="${y + bh / 2 + 4}" text-anchor="end">${esc(r.p)}</text>`;
+    if (d) html += `<path d="${d}" fill="${col(r.p)}"/>`;
+    html += `<text class="val" x="${x1 + 6}" y="${y + bh / 2 + 4}">${fmt(r.v)}</text>`;
+    html += `<rect data-i="${i}" x="0" y="${y - gap / 2}" width="${W}" height="${bh + gap}" fill="transparent"/>`;
+  });
+  svg.innerHTML = html; el.appendChild(svg);
+  const t = tipBox(el);
+  svg.addEventListener("pointermove", e => {
+    const i = e.target.dataset && e.target.dataset.i; if (i === undefined) { t.style.display = "none"; return; }
+    const r = rows[+i]; const b = el.getBoundingClientRect();
+    t.innerHTML = `<b>${esc(r.p)}</b>${tip(r)}`;
+    placeTip(el, t, e.clientX - b.left, e.clientY - b.top);
+  });
+  svg.addEventListener("pointerleave", () => t.style.display = "none");
+}
+
+// Linee: una per giocatore, crosshair e tooltip al passaggio del mouse/dito.
+function lineChart(el, { x, xTitle = i => x[i], series, unit = "" }) {
+  el.innerHTML = "";
+  if (!x.length) { el.innerHTML = '<p class="empty">Nessun dato</p>'; return; }
+  const W = el.clientWidth || 600, H = 250, m = { t: 10, r: 64, b: 28, l: 40 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b, n = x.length;
+  const sc = niceScale(Math.max(...series.flatMap(s => s.values)));
+  const X = i => m.l + (n <= 1 ? iw / 2 : i * iw / (n - 1));
+  const Y = v => m.t + ih - v / sc.max * ih;
+
+  const leg = document.createElement("div"); leg.className = "legend";
+  leg.innerHTML = series.map(s => `<span><i style="background:${col(s.name)}"></i>${esc(s.name)}</span>`).join("");
+  el.appendChild(leg);
+
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+  let h = "";
+  for (let v = 0; v <= sc.max + 1e-9; v += sc.step) {
+    h += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? "var(--axis)" : "var(--grid)"}"/>`;
+    h += `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 46))));
+  x.forEach((lab, i) => {
+    if (i % every === 0 || i === n - 1)
+      h += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${esc(lab)}</text>`;
+  });
+  series.forEach(s => {
+    const d = s.values.map((v, i) => `${i ? "L" : "M"}${X(i)},${Y(v)}`).join("");
+    h += `<path d="${d}" fill="none" stroke="${col(s.name)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  // etichette dirette a fine linea, distanziate per non sovrapporsi
+  if (series.length <= 4) {
+    const ends = series.map(s => ({ s, y: Y(s.values[n - 1]) })).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+    ends.forEach(e => {
+      h += `<circle cx="${X(n - 1)}" cy="${Y(e.s.values[n - 1])}" r="4" fill="${col(e.s.name)}" stroke="var(--surface)" stroke-width="2"/>`;
+      h += `<text class="lab" x="${X(n - 1) + 10}" y="${e.y + 4}">${esc(e.s.name)} ${e.s.values[n - 1]}</text>`;
+    });
+  }
+  h += `<g class="hover" style="display:none"><line y1="${m.t}" y2="${m.t + ih}" stroke="var(--axis)"/>` +
+    series.map(s => `<circle r="4" fill="${col(s.name)}" stroke="var(--surface)" stroke-width="2"/>`).join("") + `</g>`;
+  h += `<rect x="${m.l - 10}" y="0" width="${iw + 20}" height="${H}" fill="transparent"/>`;
+  svg.innerHTML = h; el.appendChild(svg);
+
+  const hov = svg.querySelector(".hover"), line = hov.querySelector("line"), dots = hov.querySelectorAll("circle");
+  const t = tipBox(el);
+  svg.addEventListener("pointermove", e => {
+    const b = svg.getBoundingClientRect(), sx = (e.clientX - b.left) * W / b.width;
+    const i = n <= 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((sx - m.l) / iw * (n - 1))));
+    hov.style.display = ""; line.setAttribute("x1", X(i)); line.setAttribute("x2", X(i));
+    series.forEach((s, k) => { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(s.values[i])); });
+    const rows = series.map(s => ({ s, v: s.values[i] })).sort((a, b) => a.v - b.v);
+    t.innerHTML = `<b>${esc(xTitle(i))}</b>` + rows.map(r =>
+      `<div class="row"><span class="dot" style="background:${col(r.s.name)}"></span><span>${esc(r.s.name)}</span><span>${r.v}${unit}</span></div>`).join("");
+    const eb = el.getBoundingClientRect();
+    placeTip(el, t, X(i) * b.width / W + (b.left - eb.left), e.clientY - eb.top);
+  });
+  svg.addEventListener("pointerleave", () => { hov.style.display = "none"; t.style.display = "none"; });
+}
+
+/* ---------------- pagina ---------------- */
+let GAMES = ALL;
+
+function renderTiles() {
+  const mani = GAMES.reduce((s, g) => s + g.mani.length, 0);
+  const pl = new Set(GAMES.flatMap(g => g.giocatori));
+  const last = GAMES[GAMES.length - 1];
+  document.getElementById("tiles").innerHTML = [
+    ["Partite", GAMES.length, GAMES.length ? `dal ${fmtDate(GAMES[0].data)}` : ""],
+    ["Mani giocate", mani, GAMES.length ? `${num(mani / GAMES.length)} a partita` : ""],
+    ["Giocatori", pl.size, [...pl].join(" · ")],
+    ["Ultima partita", last ? fmtDate(last.data) : "–", last ? `vinta da ${winners(last).join(", ")}` : ""]
+  ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join("");
+}
+
+function renderClassifica(S) {
+  document.getElementById("classifica").innerHTML = `<thead><tr>
+    <th>Giocatore</th><th>Partite</th><th>Vinte</th><th>% vittorie</th><th>Punti medi a partita</th>
+    <th>Punti medi a mano</th><th>Chiusure</th><th>Mano peggiore</th></tr></thead><tbody>` +
+    (S.length ? S.map(s => `<tr><td>${who(s.p)}</td><td>${s.partite}</td><td>${s.vinte}</td><td>${pct(s.vinte, s.partite)}</td>
+      <td>${num(s.punti / s.partite)}</td><td>${num(s.punti / s.mani)}</td><td>${s.zeri} <span style="color:var(--muted)">(${pct(s.zeri, s.mani)})</span></td>
+      <td>${s.peggio}</td></tr>`).join("") : `<tr><td colspan="8" class="empty">Nessuna partita</td></tr>`) + "</tbody>";
+}
+
+function renderCharts(S) {
+  barChart(document.getElementById("chVittorie"),
+    S.map(s => ({ p: s.p, v: s.vinte, s })).sort((a, b) => b.v - a.v),
+    { tip: r => `${r.s.vinte} vinte su ${r.s.partite} (${pct(r.s.vinte, r.s.partite)})` });
+  barChart(document.getElementById("chMedia"),
+    S.map(s => ({ p: s.p, v: s.punti / s.mani, s })).sort((a, b) => a.v - b.v),
+    { fmt: v => num(v), tip: r => `${num(r.v)} punti a mano su ${r.s.mani} mani` });
+
+  const pl = PLAYERS.filter(p => GAMES.some(g => g.giocatori.includes(p)));
+  const acc = Object.fromEntries(pl.map(p => [p, 0]));
+  const series = pl.map(p => ({ name: p, values: [] }));
+  GAMES.forEach(g => {
+    winners(g).forEach(p => acc[p]++);
+    series.forEach(s => s.values.push(acc[s.name]));
+  });
+  lineChart(document.getElementById("chTempo"), {
+    x: GAMES.map(g => shortDate(g.data)),
+    xTitle: i => `Partita del ${fmtDate(GAMES[i].data)} · vince ${winners(GAMES[i]).join(", ")}`,
+    series
+  });
+}
+
+function renderRecords() {
+  const el = document.getElementById("records");
+  if (!GAMES.length) { el.innerHTML = '<p class="empty">Nessuna partita</p>'; return; }
+  let peggio = null, migliore = null, lunga = null, chiusure = null;
+  GAMES.forEach(g => {
+    const t = totals(g), w = winners(g);
+    g.mani.forEach((m, k) => g.giocatori.forEach((p, i) => {
+      const v = Number(m[i]) || 0;
+      if (!peggio || v > peggio.v) peggio = { v, p, g, k };
+    }));
+    w.forEach(p => { const v = t[g.giocatori.indexOf(p)]; if (!migliore || v < migliore.v) migliore = { v, p, g }; });
+    if (!lunga || g.mani.length > lunga.v) lunga = { v: g.mani.length, g };
+    g.giocatori.forEach((p, i) => {
+      const z = g.mani.filter(m => (Number(m[i]) || 0) === 0).length;
+      if (!chiusure || z > chiusure.v) chiusure = { v: z, p, g };
+    });
+  });
+  // serie di vittorie consecutive (tra le partite giocate da ciascuno)
+  let serie = null; const cur = {};
+  GAMES.forEach(g => { const w = winners(g); g.giocatori.forEach(p => {
+    cur[p] = w.includes(p) ? (cur[p] || 0) + 1 : 0;
+    if (!serie || cur[p] > serie.v) serie = { v: cur[p], p };
+  }); });
+  const R = [
+    ["Mano più pesante", peggio.v, `${peggio.p} · mano ${peggio.k + 1} del ${fmtDate(peggio.g.data)}`],
+    ["Vittoria con meno punti", migliore.v, `${migliore.p} · ${fmtDate(migliore.g.data)}`],
+    ["Più chiusure in una partita", chiusure.v, `${chiusure.p} · ${fmtDate(chiusure.g.data)}`],
+    ["Partita più lunga", `${lunga.v} mani`, fmtDate(lunga.g.data)],
+    ["Vittorie di fila", serie.v, serie.v ? serie.p : "–"]
+  ];
+  el.innerHTML = R.map(([k, v, d]) => `<div class="rec"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join("");
+}
+
+function renderH2H() {
+  const pl = PLAYERS.filter(p => GAMES.some(g => g.giocatori.includes(p)));
+  const M = {};
+  GAMES.forEach(g => { const t = totals(g); g.giocatori.forEach((a, i) => g.giocatori.forEach((b, j) => {
+    if (a === b) return; const k = a + "|" + b; M[k] = M[k] || [0, 0];
+    if (t[i] < t[j]) M[k][0]++; else if (t[i] > t[j]) M[k][1]++;
+  })); });
+  document.getElementById("h2h").innerHTML = `<thead><tr><th></th>${pl.map(p => `<th>${who(p)}</th>`).join("")}</tr></thead><tbody>` +
+    pl.map(a => `<tr><td>${who(a)}</td>${pl.map(b => {
+      if (a === b) return `<td style="color:var(--muted)">–</td>`;
+      const r = M[a + "|" + b]; if (!r) return `<td style="color:var(--muted)">·</td>`;
+      return `<td${r[0] > r[1] ? ' class="win"' : ""}>${r[0]}–${r[1]}</td>`;
+    }).join("")}</tr>`).join("") + "</tbody>";
+}
+
+function renderPartite() {
+  const el = document.getElementById("partite");
+  if (!GAMES.length) { el.innerHTML = '<p class="empty">Nessuna partita</p>'; return; }
+  el.innerHTML = GAMES.slice().reverse().map(g => {
+    const t = totals(g), mn = Math.min(...t), w = winners(g);
+    const score = g.giocatori.map((p, i) => `<span${t[i] === mn ? ' class="w"' : ""}>${esc(p)} ${t[i]}</span>`).join(" · ");
+    const rows = g.mani.map((m, k) => `<tr><td>${k + 1}</td>${g.giocatori.map((_, i) => {
+      const v = Number(m[i]) || 0; return `<td${v === 0 ? ' class="zero"' : ""}>${v}</td>`; }).join("")}</tr>`).join("");
+    return `<details class="game" data-id="${esc(g.id)}"><summary>
+      <span class="gdate">${fmtDate(g.data)}</span><span class="gscore">${score}</span>
+      <span class="badge">🏆 ${esc(w.join(", "))}</span><span class="gscore" style="margin-left:auto">${g.mani.length} mani</span></summary>
+      <div class="gbody">${g.note ? `<p class="hint">${esc(g.note)}</p>` : ""}<div class="grid2">
+        <div class="scroll"><table><thead><tr><th>Mano</th>${g.giocatori.map(p => `<th>${who(p)}</th>`).join("")}</tr></thead>
+        <tbody>${rows}<tr class="tot"><td>Totale</td>${t.map(v => `<td${v === mn ? ' class="win"' : ""}>${v}</td>`).join("")}</tr></tbody></table></div>
+        <div><p class="hint" style="margin-bottom:6px">Punteggio accumulato mano per mano</p><div class="chart"></div></div>
+      </div></div></details>`;
+  }).join("");
+  el.querySelectorAll("details.game").forEach(d => d.addEventListener("toggle", () => {
+    if (d.open) drawGame(d);
+  }));
+}
+function drawGame(d) {
+  const g = ALL.find(x => x.id === d.dataset.id);
+  const series = g.giocatori.map((p, i) => {
+    let s = 0; return { name: p, values: [0, ...g.mani.map(m => (s += Number(m[i]) || 0))] };
+  });
+  lineChart(d.querySelector(".chart"), {
+    x: ["0", ...g.mani.map((_, k) => String(k + 1))],
+    xTitle: i => i ? `Dopo la mano ${i}` : "Inizio",
+    series, unit: " pt"
+  });
+}
+
+function render() {
+  const S = stats(GAMES);
+  renderTiles(); renderClassifica(S); renderCharts(S); renderRecords(); renderH2H(); renderPartite();
+}
+
+const sel = document.getElementById("anno");
+const anni = [...new Set(ALL.map(g => g.data.slice(0, 4)))].sort().reverse();
+sel.innerHTML = `<option value="">Tutti gli anni</option>` + anni.map(a => `<option>${a}</option>`).join("");
+sel.addEventListener("change", () => { GAMES = sel.value ? ALL.filter(g => g.data.startsWith(sel.value)) : ALL; render(); });
+
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => {
+  renderCharts(stats(GAMES)); document.querySelectorAll("details.game[open]").forEach(drawGame);
+}, 150); });
+render();
+</script>
+</body>
+</html>
