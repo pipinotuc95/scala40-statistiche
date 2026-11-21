@@ -306,7 +306,8 @@ const nomi = list => list.map(nome).join(", ");
 const NON_APERTA = 100;
 const fmtDate = d => { const [y, m, g] = d.split("-"); return `${+g} ${MESI[+m - 1]} ${y}`; };
 const shortDate = d => { const [y, m, g] = d.split("-"); return `${+g}/${+m}/${y.slice(2)}`; };
-const totals = g => g.giocatori.map((_, i) => g.mani.reduce((s, m) => s + (Number(m[i]) || 0), 0));
+// "totali" (facoltativo) = punteggio finale scritto sul foglio, per le partite di cui non si hanno tutte le mani
+const totals = g => g.totali ? g.totali.slice() : g.giocatori.map((_, i) => g.mani.reduce((s, m) => s + (Number(m[i]) || 0), 0));
 const winners = g => { const t = totals(g), mn = Math.min(...t); return g.giocatori.filter((_, i) => t[i] === mn); };
 const pct = (a, b) => b ? Math.round(a * 100 / b) + "%" : "–";
 const num = (x, d = 1) => x.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -315,12 +316,12 @@ const who = p => `<span class="who"><span class="dot" style="background:${col(p)
 /* ---------------- statistiche ---------------- */
 function stats(games) {
   const S = {};
-  const get = p => S[p] || (S[p] = { p, partite: 0, vinte: 0, mani: 0, zeri: 0, punti: 0, peggio: 0, cento: 0 });
+  const get = p => S[p] || (S[p] = { p, partite: 0, vinte: 0, mani: 0, zeri: 0, punti: 0, peggio: 0, cento: 0, tot: 0 });
   games.forEach(g => {
-    const w = winners(g);
+    const w = winners(g), t = totals(g);
     g.giocatori.forEach((p, i) => {
       const s = get(p);
-      s.partite++; if (w.includes(p)) s.vinte++;
+      s.partite++; s.tot += t[i]; if (w.includes(p)) s.vinte++;
       g.mani.forEach(m => {
         if (m[i] === null || m[i] === undefined) return; // mano non giocata
         const v = Number(m[i]) || 0;
@@ -486,7 +487,7 @@ function renderClassifica(S) {
     <th>Giocatore</th><th>Partite</th><th>Vinte</th><th>% vittorie</th><th>Punti medi a partita</th>
     <th>Punti medi a mano</th><th>Chiusure</th><th>Non aperte</th><th>Mano peggiore</th></tr></thead><tbody>` +
     (S.length ? S.map((s, i) => `<tr><td>${who(s.p)}${i < 3 ? ` <span class="medal">${medal[i]}</span>` : ""}</td><td>${s.partite}</td><td>${s.vinte}</td><td>${pct(s.vinte, s.partite)}</td>
-      <td>${num(s.punti / s.partite)}</td><td>${num(s.punti / s.mani)}</td><td>${s.zeri} <span style="color:var(--muted)">(${pct(s.zeri, s.mani)})</span></td>
+      <td>${num(s.tot / s.partite)}</td><td>${s.mani ? num(s.punti / s.mani) : "–"}</td><td>${s.zeri} <span style="color:var(--muted)">(${pct(s.zeri, s.mani)})</span></td>
       <td>${s.cento}</td><td>${s.peggio}</td></tr>`).join("") : `<tr><td colspan="9" class="empty">Nessuna partita</td></tr>`) + "</tbody>";
 }
 
@@ -495,7 +496,7 @@ function renderCharts(S) {
     S.map(s => ({ p: s.p, v: s.vinte, s })).sort((a, b) => b.v - a.v),
     { tip: r => `${r.s.vinte} vinte su ${r.s.partite} (${pct(r.s.vinte, r.s.partite)})` });
   barChart(document.getElementById("chMedia"),
-    S.map(s => ({ p: s.p, v: s.punti / s.mani, s })).sort((a, b) => a.v - b.v),
+    S.filter(s => s.mani).map(s => ({ p: s.p, v: s.punti / s.mani, s })).sort((a, b) => a.v - b.v),
     { fmt: v => num(v), tip: r => `${num(r.v)} punti a mano su ${r.s.mani} mani` });
 
   const pl = PLAYERS.filter(p => GAMES.some(g => g.giocatori.includes(p)));
@@ -581,7 +582,7 @@ function renderPartite() {
       return `<td${v === 0 ? ' class="zero"' : ""}>${v}</td>`; }).join("")}</tr>`).join("");
     return `<details class="game" data-id="${esc(g.id)}"><summary>
       <span class="gdate">${fmtDate(g.data)}</span><span class="gscore">${score}</span>
-      <span class="badge">🏆 ${esc(nomi(w))}</span><span class="gscore" style="margin-left:auto">${g.mani.length} mani</span></summary>
+      <span class="badge">🏆 ${esc(nomi(w))}</span><span class="gscore" style="margin-left:auto">${g.mani.length ? `${g.mani.length} mani` : "solo risultato"}</span></summary>
       <div class="gbody">${g.note ? `<p class="hint">${esc(g.note)}</p>` : ""}<div class="grid2">
         <div class="scroll"><table><thead><tr><th>Mano</th>${g.giocatori.map(p => `<th>${who(p)}</th>`).join("")}</tr></thead>
         <tbody>${rows}<tr class="tot"><td>Totale</td>${t.map(v => `<td${v === mn ? ' class="win"' : ""}>${v}</td>`).join("")}</tr></tbody></table></div>
@@ -594,6 +595,7 @@ function renderPartite() {
 }
 function drawGame(d) {
   const g = ALL.find(x => x.id === d.dataset.id);
+  if (!g.mani.length) { d.querySelector(".chart").innerHTML = '<p class="empty">Mani non trascritte</p>'; return; }
   const series = g.giocatori.map((p, i) => {
     let s = 0; return { name: p, values: [0, ...g.mani.map(m => (s += Number(m[i]) || 0))] };
   });
