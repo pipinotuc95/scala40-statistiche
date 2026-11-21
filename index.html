@@ -454,7 +454,7 @@ function renderTiles() {
   const last = GAMES[GAMES.length - 1];
   const T = [
     ["♠", GAMES.length, "Partite", GAMES.length ? `dal ${fmtDate(GAMES[0].data)}` : ""],
-    ["♥", mani, "Mani giocate", GAMES.length ? `${num(mani / GAMES.length)} a partita` : ""],
+    ["♥", mani, "Mani giocate", GAMES.length ? `${num(mani / Math.max(1, GAMES.filter(g => g.mani.length).length))} a partita` : ""],
     ["♣", pl.size, "Giocatori", "al tavolo finora"],
     ["♦", last ? fmtDate(last.data) : "–", "Ultima partita", last ? `vinta da ${nomi(winners(last))}` : ""]
   ];
