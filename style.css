@@ -234,3 +234,25 @@ h3 { font-family: var(--serif); font-size: 17px; margin: 0 0 6px; }
 .grid3 a { color: inherit; }
 section[id^="g-"] { scroll-margin-top: 16px; }
 details.game { scroll-margin-top: 16px; }
+
+/* ---------- pagina Tavolo ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip {
+  font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 10px 16px; border-radius: 999px; border: 1px solid var(--paper-edge); background: #fbf6e9; color: var(--ink);
+}
+.chip:hover { border-color: var(--gold); }
+.chip.on { background: var(--gold); border-color: var(--gold); color: #3b2a00; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.chip.on .dot { box-shadow: 0 0 0 2px #fff; }
+.modo { display: grid; gap: 8px; margin: 18px 0 14px; color: var(--ink-2); font-size: 14px; }
+.modo label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.modo input { margin-top: 3px; accent-color: var(--felt); }
+.azzera { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.azzera:disabled { opacity: .4; cursor: default; }
+.tiles.tiles3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 680px) { .tiles.tiles3 { grid-template-columns: 1fr 1fr; } }
+table.elenco td { white-space: normal; }
+table.elenco td:nth-child(2) { text-align: left; color: var(--ink-2); }
+table.elenco .w { color: var(--ink); font-weight: 700; }
+table.elenco a { color: inherit; font-weight: 600; }
+#tavoloScelta { padding-bottom: 40px; }

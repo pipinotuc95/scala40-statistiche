@@ -374,7 +374,134 @@ function drawGame(d) {
   });
 }
 
+/* ---------------- pagina Tavolo: scegli tu chi è seduto ---------------- */
+// Statistiche dei soli giocatori scelti. "esatto" = partite con proprio quei giocatori e nessun altro;
+// altrimenti tutte le partite in cui c'erano tutti, contando la classifica solo fra loro.
+const TAV = { sel: [], modo: "esatto" };
+try {
+  const q = new URLSearchParams(location.search);
+  const fromUrl = (q.get("g") || "").split(",").filter(p => PLAYERS.includes(p));
+  const saved = JSON.parse(localStorage.getItem("scala40-tavolo-scelta") || "null");
+  if (fromUrl.length) { TAV.sel = fromUrl; TAV.modo = q.get("m") === "tutte" ? "tutte" : "esatto"; }
+  else if (saved && Array.isArray(saved.sel)) { TAV.sel = saved.sel.filter(p => PLAYERS.includes(p)); TAV.modo = saved.modo === "tutte" ? "tutte" : "esatto"; }
+} catch (e) {}
+
+function tavoloGames() {
+  const s = TAV.sel;
+  return GAMES.filter(g => s.every(p => g.giocatori.includes(p)) && (TAV.modo === "tutte" || g.giocatori.length === s.length));
+}
+// totali e vincitori considerando solo i giocatori scelti
+const subTot = (g, p) => totals(g)[g.giocatori.indexOf(p)];
+const subWin = g => { const mn = Math.min(...TAV.sel.map(p => subTot(g, p))); return TAV.sel.filter(p => subTot(g, p) === mn); };
+
+function renderTavoloScelta() {
+  const el = $("tavoloScelta"); if (!el) return;
+  const pl = PLAYERS.slice().sort((a, b) => nome(a).localeCompare(nome(b)));
+  el.innerHTML = `<div class="chips">${pl.map(p => `<button type="button" class="chip${TAV.sel.includes(p) ? " on" : ""}" data-p="${esc(p)}" aria-pressed="${TAV.sel.includes(p)}">
+      <span class="dot" style="background:${col(p)}"></span>${esc(nome(p))}</button>`).join("")}</div>
+    <div class="modo">
+      <label><input type="radio" name="modo" value="esatto"${TAV.modo === "esatto" ? " checked" : ""}> <span>Solo partite con <b>esattamente</b> questi giocatori</span></label>
+      <label><input type="radio" name="modo" value="tutte"${TAV.modo === "tutte" ? " checked" : ""}> <span>Anche partite con <b>altri</b> al tavolo (la classifica conta solo fra loro)</span></label>
+    </div>
+    <button type="button" class="azzera"${TAV.sel.length ? "" : " disabled"}>Azzera la scelta</button>`;
+  el.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+    const p = b.dataset.p; TAV.sel = TAV.sel.includes(p) ? TAV.sel.filter(x => x !== p) : [...TAV.sel, p]; tavoloChanged();
+  }));
+  el.querySelectorAll('input[name="modo"]').forEach(r => r.addEventListener("change", () => { TAV.modo = r.value; tavoloChanged(); }));
+  el.querySelector(".azzera").addEventListener("click", () => { TAV.sel = []; tavoloChanged(); });
+}
+function tavoloChanged() {
+  try { localStorage.setItem("scala40-tavolo-scelta", JSON.stringify(TAV)); } catch (e) {}
+  try {
+    const q = TAV.sel.length ? `?g=${TAV.sel.join(",")}${TAV.modo === "tutte" ? "&m=tutte" : ""}` : location.pathname;
+    history.replaceState(null, "", q);
+  } catch (e) {}
+  renderTavoloScelta(); renderTavolo();
+}
+
+function renderTavolo() {
+  const el = $("tavoloRis"); if (!el) return;
+  const s = TAV.sel;
+  if (s.length < 2) {
+    el.innerHTML = `<section class="card" data-suit="♣"><p class="empty">Scegli almeno due giocatori qui sopra per vedere come vanno fra loro.</p></section>`;
+    return;
+  }
+  const gs = tavoloGames();
+  const chi = nomi(s);
+  if (!gs.length) {
+    el.innerHTML = `<section class="card" data-suit="♣"><p class="empty">Nessuna partita trovata con ${esc(chi)}${TAV.modo === "esatto" ? " da soli al tavolo. Prova a includere anche le partite con altri giocatori." : "."}</p></section>`;
+    return;
+  }
+  // statistiche fra i soli giocatori scelti
+  const S = s.map(p => {
+    const r = { p, partite: gs.length, vinte: 0, tot: 0, mani: 0, punti: 0, zeri: 0, cento: 0, pos: 0 };
+    gs.forEach(g => {
+      const i = g.giocatori.indexOf(p), v = subTot(g, p);
+      r.tot += v; if (subWin(g).includes(p)) r.vinte++;
+      r.pos += 1 + s.filter(o => subTot(g, o) < v).length;
+      g.mani.forEach(m => {
+        if (m[i] === null || m[i] === undefined) return;
+        const x = Number(m[i]) || 0; r.mani++; r.punti += x; if (x === 0) r.zeri++; if (x === NON_APERTA) r.cento++;
+      });
+    });
+    return r;
+  }).sort((a, b) => b.vinte - a.vinte || a.pos - b.pos);
+  const medal = ["🥇", "🥈", "🥉"];
+  const last = gs[gs.length - 1];
+  const tiles = [
+    ["♠", gs.length, gs.length === 1 ? "Partita" : "Partite", `dal ${fmtDate(gs[0].data)}`],
+    ["♥", S[0].vinte ? nome(S[0].p) : "–", "Vince più spesso", `${S[0].vinte} ${S[0].vinte === 1 ? "vittoria" : "vittorie"} · ${pct(S[0].vinte, gs.length)}`],
+    ["♦", fmtDate(last.data), "Ultima partita", `vinta da ${nomi(subWin(last))}`]
+  ];
+  // testa a testa (solo con 3 o più scelti; in due è già la classifica)
+  let h2h = "";
+  if (s.length > 2) {
+    h2h = `<section class="card" data-suit="♣"><h2>Testa a testa</h2>
+      <p class="hint">Quante volte il giocatore della riga ha chiuso davanti a quello della colonna (davanti–dietro)</p>
+      <div class="scroll"><table><thead><tr><th></th>${s.map(p => `<th>${who(p)}</th>`).join("")}</tr></thead><tbody>${
+      s.map(a => `<tr><td>${who(a)}</td>${s.map(b => {
+        if (a === b) return `<td style="color:var(--muted)">–</td>`;
+        let d = 0, t = 0; gs.forEach(g => { const x = subTot(g, a), y = subTot(g, b); if (x < y) d++; else if (x > y) t++; });
+        return `<td${d > t ? ' class="win"' : ""}>${d}–${t}</td>`;
+      }).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+  }
+  const elenco = gs.slice().reverse().slice(0, 15).map(g => {
+    const w = subWin(g);
+    return `<tr><td><a href="partite.html#${esc(g.id)}">${fmtDate(g.data)}</a></td>
+      <td>${s.map(p => `<span${w.includes(p) ? ' class="w"' : ""}>${esc(nome(p))} ${subTot(g, p)}</span>`).join(" · ")}</td>
+      <td>${g.giocatori.length > s.length ? `<span class="hint">+ ${esc(nomi(g.giocatori.filter(p => !s.includes(p))))}</span>` : ""}</td>
+      <td><span class="badge">🏆 ${esc(nomi(w))}</span></td></tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="tiles tiles3">${tiles.map(([sm, v, k, d]) => `<div class="tile${rosso(sm) ? " r" : ""}"><span class="ix tl">${sm}</span><span class="ix br">${sm}</span>
+      <div class="v${String(v).length > 6 ? " small" : ""}">${esc(v)}</div><div class="k">${k}</div><div class="d">${esc(d)}</div></div>`).join("")}</div>
+    <section class="card" data-suit="♠"><h2>Classifica al tavolo</h2>
+      <p class="hint">${esc(chi)}${TAV.modo === "esatto" ? ", solo partite con loro e nessun altro." : ", in tutte le partite in cui c'erano; vince chi ha meno punti fra loro."}</p>
+      <div class="scroll"><table><thead><tr><th>Giocatore</th><th>Vinte</th><th>% vittorie</th><th>Posizione media</th><th>Punti medi a partita</th><th>Punti medi a mano</th><th>Chiusure</th><th>Non aperte</th></tr></thead><tbody>${
+      S.map((r, i) => `<tr><td>${who(r.p)}${i < 3 && r.vinte ? ` <span class="medal">${medal[i]}</span>` : ""}</td><td>${r.vinte}</td><td>${pct(r.vinte, r.partite)}</td>
+        <td>${num(r.pos / r.partite)}°</td><td>${num(r.tot / r.partite)}</td><td>${r.mani ? num(r.punti / r.mani) : "–"}</td>
+        <td>${r.zeri} <span style="color:var(--muted)">(${pct(r.zeri, r.mani)})</span></td><td>${r.cento}</td></tr>`).join("")}</tbody></table></div></section>
+    <section class="card r" data-suit="♦"><h2>Vittorie nel tempo</h2><p class="hint">Vittorie accumulate partita dopo partita, solo fra loro</p><div class="chart" id="chTavolo"></div></section>
+    ${h2h}
+    <section class="card r" data-suit="♥"><h2>Le partite</h2><p class="hint">${gs.length > 15 ? "Le 15 più recenti. " : ""}Tocca la data per aprire la partita mano per mano.</p>
+      <div class="scroll"><table class="elenco"><tbody>${elenco}</tbody></table></div></section>`;
+  drawTavoloChart(gs);
+}
+function drawTavoloChart(gs) {
+  const c = $("chTavolo"); if (!c) return;
+  gs = gs || tavoloGames();
+  const acc = Object.fromEntries(TAV.sel.map(p => [p, 0]));
+  const series = TAV.sel.map(p => ({ name: p, values: [0] }));
+  gs.forEach(g => { subWin(g).forEach(p => acc[p]++); series.forEach(x => x.values.push(acc[x.name])); });
+  lineChart(c, {
+    x: ["inizio", ...gs.map(g => shortDate(g.data))],
+    xTitle: i => i ? `Partita del ${fmtDate(gs[i - 1].data)} · vince ${nomi(subWin(gs[i - 1]))}` : "Inizio",
+    series
+  });
+}
+
 function render() {
+  renderTavoloScelta(); renderTavolo();
   const S = stats(GAMES);
   renderTiles(); renderGiocatori(S); renderSchede(S); renderClassifica(S); renderCharts(S); renderRecords(); renderH2H(); renderPartite();
 }
@@ -396,7 +523,7 @@ if ($("filtroGiocatore")) {
 }
 
 let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => {
-  renderCharts(stats(GAMES)); document.querySelectorAll("details.game[open]").forEach(drawGame);
+  renderCharts(stats(GAMES)); if ($("chTavolo")) drawTavoloChart(); document.querySelectorAll("details.game[open]").forEach(drawGame);
 }, 150); });
 render();
 // Arrivando da un link (es. dalla scheda di un giocatore) apre la partita indicata.
