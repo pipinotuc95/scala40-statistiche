@@ -134,7 +134,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 3
 
   <section class="card">
     <h2>Classifica</h2>
-    <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti, "Non aperte" quelle da 100 punti in cui il giocatore non è riuscito ad aprire.</p>
+    <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti, "Non aperte" quelle da 100 punti in cui il giocatore non è riuscito ad aprire. "Mano peggiore" esclude le non aperte.</p>
     <div class="scroll"><table id="classifica"></table></div>
   </section>
 
@@ -212,7 +212,7 @@ function stats(games) {
       s.partite++; if (w.includes(p)) s.vinte++;
       g.mani.forEach(m => {
         const v = Number(m[i]) || 0;
-        s.mani++; s.punti += v; if (v === 0) s.zeri++; if (v > s.peggio) s.peggio = v; if (v === NON_APERTA) s.cento++;
+        s.mani++; s.punti += v; if (v === 0) s.zeri++; if (v === NON_APERTA) s.cento++; else if (v > s.peggio) s.peggio = v;
       });
     });
   });
@@ -385,7 +385,7 @@ function renderRecords() {
     const t = totals(g), w = winners(g);
     g.mani.forEach((m, k) => g.giocatori.forEach((p, i) => {
       const v = Number(m[i]) || 0;
-      if (!peggio || v > peggio.v) peggio = { v, p, g, k };
+      if (v !== NON_APERTA && (!peggio || v > peggio.v)) peggio = { v, p, g, k };
     }));
     w.forEach(p => { const v = t[g.giocatori.indexOf(p)]; if (!migliore || v < migliore.v) migliore = { v, p, g }; });
     if (!lunga || g.mani.length > lunga.v) lunga = { v: g.mani.length, g };
@@ -408,7 +408,7 @@ function renderRecords() {
   const caMax = Math.max(0, ...Object.values(ca));
   const caChi = Object.keys(ca).filter(p => ca[p] === caMax);
   const R = [
-    ["Mano più pesante", peggio.v, `${nome(peggio.p)} · mano ${peggio.k + 1} del ${fmtDate(peggio.g.data)}`],
+    ["Mano più pesante (aperta)", peggio.v, `${nome(peggio.p)} · mano ${peggio.k + 1} del ${fmtDate(peggio.g.data)}`],
     ["Vittoria con meno punti", migliore.v, `${nome(migliore.p)} · ${fmtDate(migliore.g.data)}`],
     ["Più chiusure in una partita", chiusure.v, `${nome(chiusure.p)} · ${fmtDate(chiusure.g.data)}`],
     ["Partita più lunga", `${lunga.v} mani`, fmtDate(lunga.g.data)],
