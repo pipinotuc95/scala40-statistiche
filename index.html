@@ -322,6 +322,7 @@ function stats(games) {
       const s = get(p);
       s.partite++; if (w.includes(p)) s.vinte++;
       g.mani.forEach(m => {
+        if (m[i] === null || m[i] === undefined) return; // mano non giocata
         const v = Number(m[i]) || 0;
         s.mani++; s.punti += v; if (v === 0) s.zeri++;
         if (v === NON_APERTA) s.cento++; else if (v > s.peggio) s.peggio = v;
@@ -524,7 +525,7 @@ function renderRecords() {
     w.forEach(p => { const v = t[g.giocatori.indexOf(p)]; if (!migliore || v < migliore.v) migliore = { v, p, g }; });
     if (!lunga || g.mani.length > lunga.v) lunga = { v: g.mani.length, g };
     g.giocatori.forEach((p, i) => {
-      const z = g.mani.filter(m => (Number(m[i]) || 0) === 0).length;
+      const z = g.mani.filter(m => m[i] !== null && m[i] !== undefined && Number(m[i]) === 0).length;
       if (!chiusure || z > chiusure.v) chiusure = { v: z, p, g };
     });
   });
@@ -574,6 +575,7 @@ function renderPartite() {
     const t = totals(g), mn = Math.min(...t), w = winners(g);
     const score = g.giocatori.map((p, i) => `<span${t[i] === mn ? ' class="w"' : ""}>${esc(nome(p))} ${t[i]}</span>`).join(" · ");
     const rows = g.mani.map((m, k) => `<tr><td>${k + 1}</td>${g.giocatori.map((_, i) => {
+      if (m[i] === null || m[i] === undefined) return `<td style="color:var(--muted)" title="Non ha giocato questa mano">—</td>`;
       const v = Number(m[i]) || 0;
       if (v === NON_APERTA) return `<td class="cento" title="Non ha aperto">${v} <small>non aperto</small></td>`;
       return `<td${v === 0 ? ' class="zero"' : ""}>${v}</td>`; }).join("")}</tr>`).join("");
