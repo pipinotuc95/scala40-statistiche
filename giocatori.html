@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scala 40 – Giocatori</title>
+<meta name="theme-color" content="#0f5a35">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='3' width='20' height='26' rx='3' fill='%23fffdf7' stroke='%23b3262e' stroke-width='2'/%3E%3Cpath d='M16 10l5 6-5 6-5-6z' fill='%23b3262e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero compact">
+    <h1>Scala 40</h1>
+    <p class="sub">Le partite di casa, trascritte dai fogli. Vince chi chiude con meno punti.</p>
+    <div class="suits">♠ ♥ ♦ ♣</div>
+    <div class="controls"><label>Periodo <select id="anno"></select></label></div>
+  </header>
+  <nav class="tabs">
+    <a href="index.html"><span>♠</span>Statistiche</a>
+    <a href="giocatori.html" aria-current="page"><span>♥</span>Giocatori</a>
+    <a href="partite.html"><span>♦</span>Partite</a>
+  </nav>
+
+  <div class="section-title"><h2>I giocatori</h2></div>
+  <p class="hint">In ordine di classifica. Tocca una carta per vedere la scheda del giocatore.</p>
+  <div class="players" id="giocatori"></div>
+
+  <div class="section-title"><h2>Le schede</h2></div>
+  <div id="schede"></div>
+
+  <footer>♠ ♥ ♦ ♣ &nbsp; Dati in <code>partite.js</code></footer>
+</div>
+<script src="partite.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
