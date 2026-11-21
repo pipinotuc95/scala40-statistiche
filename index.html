@@ -108,6 +108,8 @@ details.game[open] > summary::before { content: "▾"; }
 .gbody .grid2 { margin: 0; }
 td.win { font-weight: 700; }
 td.zero { color: var(--good); font-weight: 600; }
+td.cento { color: var(--accent); font-weight: 700; }
+td.cento small { font-weight: 500; font-size: 11px; }
 tr.tot td { border-top: 2px solid var(--axis); font-weight: 700; }
 .records { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .rec { border: 1px solid var(--ring); border-radius: 12px; padding: 12px 14px; }
@@ -132,7 +134,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 3
 
   <section class="card">
     <h2>Classifica</h2>
-    <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti.</p>
+    <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti, "Non aperte" quelle da 100 punti in cui il giocatore non è riuscito ad aprire.</p>
     <div class="scroll"><table id="classifica"></table></div>
   </section>
 
@@ -188,18 +190,21 @@ ALL.forEach(g => g.giocatori.forEach(p => { if (!PLAYERS.includes(p)) PLAYERS.pu
 const col = p => { const i = PLAYERS.indexOf(p); return i >= 0 && i < 8 ? `var(--s${i + 1})` : "var(--muted)"; };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nome = s => (window.NOMI || {})[s] || s;
+const nomi = list => list.map(nome).join(", ");
+const NON_APERTA = 100;
 const fmtDate = d => { const [y, m, g] = d.split("-"); return `${+g} ${MESI[+m - 1]} ${y}`; };
 const shortDate = d => { const [y, m, g] = d.split("-"); return `${+g}/${+m}/${y.slice(2)}`; };
 const totals = g => g.giocatori.map((_, i) => g.mani.reduce((s, m) => s + (Number(m[i]) || 0), 0));
 const winners = g => { const t = totals(g), mn = Math.min(...t); return g.giocatori.filter((_, i) => t[i] === mn); };
 const pct = (a, b) => b ? Math.round(a * 100 / b) + "%" : "–";
 const num = (x, d = 1) => x.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
-const who = p => `<span class="who"><span class="dot" style="background:${col(p)}"></span>${esc(p)}</span>`;
+const who = p => `<span class="who"><span class="dot" style="background:${col(p)}"></span>${esc(nome(p))}</span>`;
 
 /* ---------------- statistiche ---------------- */
 function stats(games) {
   const S = {};
-  const get = p => S[p] || (S[p] = { p, partite: 0, vinte: 0, mani: 0, zeri: 0, punti: 0, peggio: 0 });
+  const get = p => S[p] || (S[p] = { p, partite: 0, vinte: 0, mani: 0, zeri: 0, punti: 0, peggio: 0, cento: 0 });
   games.forEach(g => {
     const w = winners(g);
     g.giocatori.forEach((p, i) => {
@@ -207,7 +212,7 @@ function stats(games) {
       s.partite++; if (w.includes(p)) s.vinte++;
       g.mani.forEach(m => {
         const v = Number(m[i]) || 0;
-        s.mani++; s.punti += v; if (v === 0) s.zeri++; if (v > s.peggio) s.peggio = v;
+        s.mani++; s.punti += v; if (v === 0) s.zeri++; if (v > s.peggio) s.peggio = v; if (v === NON_APERTA) s.cento++;
       });
     });
   });
@@ -220,7 +225,7 @@ const NS = "http://www.w3.org/2000/svg";
 function niceScale(max, ticks = 4) {
   max = Math.max(max, 1);
   const raw = max / ticks, p = Math.pow(10, Math.floor(Math.log10(raw)));
-  const step = [1, 2, 2.5, 5, 10].map(f => f * p).find(s => s >= raw);
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map(f => f * p).find(s => s >= raw)); // punti e vittorie sono interi
   return { step, max: Math.ceil(max / step) * step };
 }
 function tipBox(el) {
@@ -239,7 +244,7 @@ function placeTip(el, tip, x, y) {
 function barChart(el, rows, { fmt = v => v, tip = r => "" } = {}) {
   el.innerHTML = "";
   if (!rows.length) { el.innerHTML = '<p class="empty">Nessun dato</p>'; return; }
-  const W = el.clientWidth || 400, bh = 22, gap = 12, L = 56, R = 44;
+  const W = el.clientWidth || 400, bh = 22, gap = 12, L = 84, R = 44;
   const H = rows.length * (bh + gap) - gap + 4;
   const max = Math.max(...rows.map(r => r.v), 0) || 1;
   const iw = W - L - R;
@@ -250,7 +255,7 @@ function barChart(el, rows, { fmt = v => v, tip = r => "" } = {}) {
   rows.forEach((r, i) => {
     const y = i * (bh + gap), w = Math.max(0, r.v / max * iw), x0 = L + 1, x1 = x0 + w, rr = Math.min(4, w);
     const d = w > 0 ? `M${x0},${y}H${x1 - rr}A${rr},${rr} 0 0 1 ${x1},${y + rr}V${y + bh - rr}A${rr},${rr} 0 0 1 ${x1 - rr},${y + bh}H${x0}Z` : "";
-    html += `<text class="lab" x="${L - 10}" y="${y + bh / 2 + 4}" text-anchor="end">${esc(r.p)}</text>`;
+    html += `<text class="lab" x="${L - 10}" y="${y + bh / 2 + 4}" text-anchor="end">${esc(nome(r.p))}</text>`;
     if (d) html += `<path d="${d}" fill="${col(r.p)}"/>`;
     html += `<text class="val" x="${x1 + 6}" y="${y + bh / 2 + 4}">${fmt(r.v)}</text>`;
     html += `<rect data-i="${i}" x="0" y="${y - gap / 2}" width="${W}" height="${bh + gap}" fill="transparent"/>`;
@@ -260,7 +265,7 @@ function barChart(el, rows, { fmt = v => v, tip = r => "" } = {}) {
   svg.addEventListener("pointermove", e => {
     const i = e.target.dataset && e.target.dataset.i; if (i === undefined) { t.style.display = "none"; return; }
     const r = rows[+i]; const b = el.getBoundingClientRect();
-    t.innerHTML = `<b>${esc(r.p)}</b>${tip(r)}`;
+    t.innerHTML = `<b>${esc(nome(r.p))}</b>${tip(r)}`;
     placeTip(el, t, e.clientX - b.left, e.clientY - b.top);
   });
   svg.addEventListener("pointerleave", () => t.style.display = "none");
@@ -270,14 +275,14 @@ function barChart(el, rows, { fmt = v => v, tip = r => "" } = {}) {
 function lineChart(el, { x, xTitle = i => x[i], series, unit = "" }) {
   el.innerHTML = "";
   if (!x.length) { el.innerHTML = '<p class="empty">Nessun dato</p>'; return; }
-  const W = el.clientWidth || 600, H = 250, m = { t: 10, r: 64, b: 28, l: 40 };
+  const W = el.clientWidth || 600, H = 250, m = { t: 10, r: 104, b: 28, l: 40 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b, n = x.length;
   const sc = niceScale(Math.max(...series.flatMap(s => s.values)));
   const X = i => m.l + (n <= 1 ? iw / 2 : i * iw / (n - 1));
   const Y = v => m.t + ih - v / sc.max * ih;
 
   const leg = document.createElement("div"); leg.className = "legend";
-  leg.innerHTML = series.map(s => `<span><i style="background:${col(s.name)}"></i>${esc(s.name)}</span>`).join("");
+  leg.innerHTML = series.map(s => `<span><i style="background:${col(s.name)}"></i>${esc(nome(s.name))}</span>`).join("");
   el.appendChild(leg);
 
   const svg = document.createElementNS(NS, "svg");
@@ -302,7 +307,7 @@ function lineChart(el, { x, xTitle = i => x[i], series, unit = "" }) {
     for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
     ends.forEach(e => {
       h += `<circle cx="${X(n - 1)}" cy="${Y(e.s.values[n - 1])}" r="4" fill="${col(e.s.name)}" stroke="var(--surface)" stroke-width="2"/>`;
-      h += `<text class="lab" x="${X(n - 1) + 10}" y="${e.y + 4}">${esc(e.s.name)} ${e.s.values[n - 1]}</text>`;
+      h += `<text class="lab" x="${X(n - 1) + 10}" y="${e.y + 4}">${esc(nome(e.s.name))} ${e.s.values[n - 1]}</text>`;
     });
   }
   h += `<g class="hover" style="display:none"><line y1="${m.t}" y2="${m.t + ih}" stroke="var(--axis)"/>` +
@@ -319,7 +324,7 @@ function lineChart(el, { x, xTitle = i => x[i], series, unit = "" }) {
     series.forEach((s, k) => { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(s.values[i])); });
     const rows = series.map(s => ({ s, v: s.values[i] })).sort((a, b) => a.v - b.v);
     t.innerHTML = `<b>${esc(xTitle(i))}</b>` + rows.map(r =>
-      `<div class="row"><span class="dot" style="background:${col(r.s.name)}"></span><span>${esc(r.s.name)}</span><span>${r.v}${unit}</span></div>`).join("");
+      `<div class="row"><span class="dot" style="background:${col(r.s.name)}"></span><span>${esc(nome(r.s.name))}</span><span>${r.v}${unit}</span></div>`).join("");
     const eb = el.getBoundingClientRect();
     placeTip(el, t, X(i) * b.width / W + (b.left - eb.left), e.clientY - eb.top);
   });
@@ -336,18 +341,18 @@ function renderTiles() {
   document.getElementById("tiles").innerHTML = [
     ["Partite", GAMES.length, GAMES.length ? `dal ${fmtDate(GAMES[0].data)}` : ""],
     ["Mani giocate", mani, GAMES.length ? `${num(mani / GAMES.length)} a partita` : ""],
-    ["Giocatori", pl.size, [...pl].join(" · ")],
-    ["Ultima partita", last ? fmtDate(last.data) : "–", last ? `vinta da ${winners(last).join(", ")}` : ""]
+    ["Giocatori", pl.size, [...pl].map(nome).join(" · ")],
+    ["Ultima partita", last ? fmtDate(last.data) : "–", last ? `vinta da ${nomi(winners(last))}` : ""]
   ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join("");
 }
 
 function renderClassifica(S) {
   document.getElementById("classifica").innerHTML = `<thead><tr>
     <th>Giocatore</th><th>Partite</th><th>Vinte</th><th>% vittorie</th><th>Punti medi a partita</th>
-    <th>Punti medi a mano</th><th>Chiusure</th><th>Mano peggiore</th></tr></thead><tbody>` +
+    <th>Punti medi a mano</th><th>Chiusure</th><th>Non aperte</th><th>Mano peggiore</th></tr></thead><tbody>` +
     (S.length ? S.map(s => `<tr><td>${who(s.p)}</td><td>${s.partite}</td><td>${s.vinte}</td><td>${pct(s.vinte, s.partite)}</td>
       <td>${num(s.punti / s.partite)}</td><td>${num(s.punti / s.mani)}</td><td>${s.zeri} <span style="color:var(--muted)">(${pct(s.zeri, s.mani)})</span></td>
-      <td>${s.peggio}</td></tr>`).join("") : `<tr><td colspan="8" class="empty">Nessuna partita</td></tr>`) + "</tbody>";
+      <td>${s.cento}</td><td>${s.peggio}</td></tr>`).join("") : `<tr><td colspan="9" class="empty">Nessuna partita</td></tr>`) + "</tbody>";
 }
 
 function renderCharts(S) {
@@ -360,14 +365,14 @@ function renderCharts(S) {
 
   const pl = PLAYERS.filter(p => GAMES.some(g => g.giocatori.includes(p)));
   const acc = Object.fromEntries(pl.map(p => [p, 0]));
-  const series = pl.map(p => ({ name: p, values: [] }));
+  const series = pl.map(p => ({ name: p, values: [0] }));
   GAMES.forEach(g => {
     winners(g).forEach(p => acc[p]++);
     series.forEach(s => s.values.push(acc[s.name]));
   });
   lineChart(document.getElementById("chTempo"), {
-    x: GAMES.map(g => shortDate(g.data)),
-    xTitle: i => `Partita del ${fmtDate(GAMES[i].data)} · vince ${winners(GAMES[i]).join(", ")}`,
+    x: GAMES.length ? ["inizio", ...GAMES.map(g => shortDate(g.data))] : [],
+    xTitle: i => i ? `Partita del ${fmtDate(GAMES[i - 1].data)} · vince ${nomi(winners(GAMES[i - 1]))}` : "Inizio",
     series
   });
 }
@@ -395,12 +400,20 @@ function renderRecords() {
     cur[p] = w.includes(p) ? (cur[p] || 0) + 1 : 0;
     if (!serie || cur[p] > serie.v) serie = { v: cur[p], p };
   }); });
+  // chi è rimasto più volte senza aprire (mani da 100)
+  const ca = {};
+  GAMES.forEach(g => g.mani.forEach(m => g.giocatori.forEach((p, i) => {
+    if ((Number(m[i]) || 0) === NON_APERTA) ca[p] = (ca[p] || 0) + 1;
+  })));
+  const caMax = Math.max(0, ...Object.values(ca));
+  const caChi = Object.keys(ca).filter(p => ca[p] === caMax);
   const R = [
-    ["Mano più pesante", peggio.v, `${peggio.p} · mano ${peggio.k + 1} del ${fmtDate(peggio.g.data)}`],
-    ["Vittoria con meno punti", migliore.v, `${migliore.p} · ${fmtDate(migliore.g.data)}`],
-    ["Più chiusure in una partita", chiusure.v, `${chiusure.p} · ${fmtDate(chiusure.g.data)}`],
+    ["Mano più pesante", peggio.v, `${nome(peggio.p)} · mano ${peggio.k + 1} del ${fmtDate(peggio.g.data)}`],
+    ["Vittoria con meno punti", migliore.v, `${nome(migliore.p)} · ${fmtDate(migliore.g.data)}`],
+    ["Più chiusure in una partita", chiusure.v, `${nome(chiusure.p)} · ${fmtDate(chiusure.g.data)}`],
     ["Partita più lunga", `${lunga.v} mani`, fmtDate(lunga.g.data)],
-    ["Vittorie di fila", serie.v, serie.v ? serie.p : "–"]
+    ["Vittorie di fila", serie.v, serie.v ? nome(serie.p) : "–"],
+    ["Più volte senza aprire", caMax, caMax ? nomi(caChi) : "nessuno finora"]
   ];
   el.innerHTML = R.map(([k, v, d]) => `<div class="rec"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join("");
 }
@@ -425,12 +438,14 @@ function renderPartite() {
   if (!GAMES.length) { el.innerHTML = '<p class="empty">Nessuna partita</p>'; return; }
   el.innerHTML = GAMES.slice().reverse().map(g => {
     const t = totals(g), mn = Math.min(...t), w = winners(g);
-    const score = g.giocatori.map((p, i) => `<span${t[i] === mn ? ' class="w"' : ""}>${esc(p)} ${t[i]}</span>`).join(" · ");
+    const score = g.giocatori.map((p, i) => `<span${t[i] === mn ? ' class="w"' : ""}>${esc(nome(p))} ${t[i]}</span>`).join(" · ");
     const rows = g.mani.map((m, k) => `<tr><td>${k + 1}</td>${g.giocatori.map((_, i) => {
-      const v = Number(m[i]) || 0; return `<td${v === 0 ? ' class="zero"' : ""}>${v}</td>`; }).join("")}</tr>`).join("");
+      const v = Number(m[i]) || 0;
+      if (v === NON_APERTA) return `<td class="cento" title="Non ha aperto">${v} <small>non aperto</small></td>`;
+      return `<td${v === 0 ? ' class="zero"' : ""}>${v}</td>`; }).join("")}</tr>`).join("");
     return `<details class="game" data-id="${esc(g.id)}"><summary>
       <span class="gdate">${fmtDate(g.data)}</span><span class="gscore">${score}</span>
-      <span class="badge">🏆 ${esc(w.join(", "))}</span><span class="gscore" style="margin-left:auto">${g.mani.length} mani</span></summary>
+      <span class="badge">🏆 ${esc(nomi(w))}</span><span class="gscore" style="margin-left:auto">${g.mani.length} mani</span></summary>
       <div class="gbody">${g.note ? `<p class="hint">${esc(g.note)}</p>` : ""}<div class="grid2">
         <div class="scroll"><table><thead><tr><th>Mano</th>${g.giocatori.map(p => `<th>${who(p)}</th>`).join("")}</tr></thead>
         <tbody>${rows}<tr class="tot"><td>Totale</td>${t.map(v => `<td${v === mn ? ' class="win"' : ""}>${v}</td>`).join("")}</tr></tbody></table></div>

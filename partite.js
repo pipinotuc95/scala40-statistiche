@@ -8,6 +8,16 @@
 //   note       facoltativo
 //
 // Vince chi finisce la partita con MENO punti.
+// Una mano da 100 punti = il giocatore non è riuscito ad aprire.
+
+// Sigla scritta sul foglio -> nome completo mostrato sul sito.
+window.NOMI = {
+  DA: "Daniela",
+  FRA: "Francesca",
+  MI: "Michele",
+  MA: "Mauro",
+  CE: "Cesare"
+};
 
 window.PARTITE = [
   {
