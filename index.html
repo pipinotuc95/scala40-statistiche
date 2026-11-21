@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -24,7 +24,7 @@
     <h1>Scala 40</h1>
     <p class="sub">Le partite di casa, trascritte dai fogli. Vince chi chiude con meno punti.</p>
     <div class="suits">♠ ♥ ♦ ♣</div>
-    <div class="controls"><label>Periodo <select id="anno"></select></label></div>
+    <div class="controls"><label>Periodo <select id="anno"></select></label> <label>Tavolo <select id="tavolo"></select></label></div>
   </header>
   <nav class="tabs">
     <a href="index.html" aria-current="page"><span>♠</span>Statistiche</a>
@@ -38,6 +38,12 @@
     <h2>Classifica</h2>
     <p class="hint">Ordinata per percentuale di vittorie. "Chiusure" sono le mani finite a 0 punti, "Non aperte" quelle da 100 punti in cui il giocatore non è riuscito ad aprire. "Mano peggiore" esclude le non aperte.</p>
     <div class="scroll"><table id="classifica"></table></div>
+  </section>
+
+  <section class="card r" data-suit="♦">
+    <h2>Classifica per tavolo</h2>
+    <p class="hint">La stessa classifica, divisa per numero di giocatori al tavolo: vincere in due non è come vincere in cinque. Chi ha giocato meno di 5 partite a un tavolo è in fondo, in grigio, senza medaglia.</p>
+    <div class="tavoli" id="perTavolo"></div>
   </section>
 
   <div class="grid2">
@@ -73,7 +79,7 @@
 
   <footer>♠ ♥ ♦ ♣ &nbsp; Dati in <code>partite.js</code></footer>
 </div>
-<script src="partite.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="partite.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

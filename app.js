@@ -241,6 +241,24 @@ function renderSchede(S) {
   }).join("") || '<p class="empty" style="color:var(--cream)">Nessuna partita</p>';
 }
 
+// Una classifica per ogni tipo di tavolo: in due, in tre, in quattro, in cinque.
+const MIN_PARTITE = 5;
+function renderPerTavolo() {
+  const el = $("perTavolo"); if (!el) return;
+  const sizes = [...new Set(GAMES.map(g => g.giocatori.length))].sort((a, b) => a - b);
+  const medal = ["🥇", "🥈", "🥉"];
+  el.innerHTML = sizes.map(n => {
+    const gs = GAMES.filter(g => g.giocatori.length === n), all = stats(gs);
+    // con poche partite la percentuale non dice molto: chi ne ha meno di MIN_PARTITE va in fondo e senza medaglia
+    const S = [...all.filter(s => s.partite >= MIN_PARTITE), ...all.filter(s => s.partite < MIN_PARTITE)];
+    return `<div class="tavolo"><h3>${n} giocatori <span class="hint">· ${gs.length} ${gs.length === 1 ? "partita" : "partite"}</span></h3>
+      <div class="scroll"><table><thead><tr><th>Giocatore</th><th>Partite</th><th>Vinte</th><th>%</th><th>Punti a partita</th></tr></thead><tbody>${
+      S.map((s, i) => `<tr${s.partite < MIN_PARTITE ? ' class="pochi" title="Meno di ' + MIN_PARTITE + ' partite a questo tavolo"' : ""}>
+        <td>${who(s.p)}${i < 3 && s.partite >= MIN_PARTITE ? ` <span class="medal">${medal[i]}</span>` : ""}</td><td>${s.partite}</td><td>${s.vinte}</td>
+        <td>${pct(s.vinte, s.partite)}</td><td>${num(s.tot / s.partite)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  }).join("") || '<p class="empty">Nessuna partita</p>';
+}
+
 function renderClassifica(S) {
   if (!$("classifica")) return;
   const medal = ["🥇", "🥈", "🥉"];
@@ -376,18 +394,32 @@ function drawGame(d) {
 
 function render() {
   const S = stats(GAMES);
-  renderTiles(); renderGiocatori(S); renderSchede(S); renderClassifica(S); renderCharts(S); renderRecords(); renderH2H(); renderPartite();
+  renderTiles(); renderGiocatori(S); renderSchede(S); renderClassifica(S); renderPerTavolo(); renderCharts(S); renderRecords(); renderH2H(); renderPartite();
 }
 
 // Il periodo scelto resta lo stesso passando da una pagina all'altra.
 const sel = document.getElementById("anno");
 const anni = [...new Set(ALL.map(g => g.data.slice(0, 4)))].sort().reverse();
 sel.innerHTML = `<option value="">Tutti gli anni</option>` + anni.map(a => `<option>${a}</option>`).join("");
-const applyAnno = () => { GAMES = sel.value ? ALL.filter(g => g.data.startsWith(sel.value)) : ALL; };
-try { const a = localStorage.getItem("scala40-anno"); if (a && anni.includes(a)) { sel.value = a; applyAnno(); } } catch (e) {}
+// Tavolo = quanti giocatori al tavolo (2, 3, 4, 5…).
+const selT = $("tavolo");
+const tavoli = [...new Set(ALL.map(g => g.giocatori.length))].sort((a, b) => a - b);
+if (selT) selT.innerHTML = `<option value="">Tutti i tavoli</option>` + tavoli.map(n => `<option value="${n}">${n} giocatori</option>`).join("");
+const applyFiltri = () => {
+  GAMES = ALL.filter(g => (!sel.value || g.data.startsWith(sel.value)) && (!selT || !selT.value || g.giocatori.length === +selT.value));
+};
+try {
+  const a = localStorage.getItem("scala40-anno"); if (a && anni.includes(a)) sel.value = a;
+  const t = localStorage.getItem("scala40-tavolo"); if (selT && t && tavoli.includes(+t)) selT.value = t;
+} catch (e) {}
+applyFiltri();
 sel.addEventListener("change", () => {
   try { localStorage.setItem("scala40-anno", sel.value); } catch (e) {}
-  applyAnno(); render();
+  applyFiltri(); render();
+});
+if (selT) selT.addEventListener("change", () => {
+  try { localStorage.setItem("scala40-tavolo", selT.value); } catch (e) {}
+  applyFiltri(); render();
 });
 if ($("filtroGiocatore")) {
   $("filtroGiocatore").innerHTML = `<option value="">Tutti i giocatori</option>` +
